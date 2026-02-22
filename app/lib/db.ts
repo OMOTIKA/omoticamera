@@ -34,7 +34,7 @@ function getDB() {
         const store = db.createObjectStore("pending", { keyPath: "id" });
         store.createIndex("by-createdAt", "createdAt");
       } else {
-        const store = db.transaction("pending").objectStore("pending");
+        const store = db.transaction("pending").objectStore("pending")!;
         if (!store.indexNames.contains("by-createdAt")) {
           store.createIndex("by-createdAt", "createdAt");
         }
