@@ -1,0 +1,8 @@
+{
+  "sponsor": {
+    "enabled": false,
+    "label": "Supported by",
+    "logoUrl": "/sponsor-logo.png",
+    "linkUrl": "https://example.com"
+  }
+}
