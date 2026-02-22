@@ -13,7 +13,7 @@ export default function Page({
     redirect(`/join?event=${encodeURIComponent(String(eventId).trim())}`);
   }
 
-  // ✅ ここはホスト入口だけ（ゲスト導線は置かない）
+  // ✅ ホスト入口だけ（ゲスト導線は置かない）
   return (
     <main
       style={{
@@ -33,26 +33,24 @@ export default function Page({
         ※ ゲストはQRから参加します（この画面はホスト専用です）
       </p>
 
-      <button
-        onClick={() => {
-          // server componentなので href で遷移
-          location.href = "/host/login";
-        }}
+      <a
+        href="/host/login"
         style={{
+          display: "block",
           width: "100%",
           padding: "14px 16px",
           borderRadius: 999,
-          border: 0,
           background: "#000",
           color: "#fff",
           fontWeight: 900,
           fontSize: 16,
-          cursor: "pointer",
+          textAlign: "center",
+          textDecoration: "none",
           marginTop: 12,
         }}
       >
         ホストとして開始する
-      </button>
+      </a>
     </main>
   );
 }
