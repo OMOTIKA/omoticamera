@@ -80,7 +80,7 @@ export async function clearAllPending() {
 }
 
 // ✅ 互換のための別名（StatusPageが clearPending を呼ぶならこれで吸収できる）
-export const clearPending = clearAllPending;
+export const clearAllPending = clearAllPending;
 
 export async function resetLocalQueue() {
   indexedDB.deleteDatabase(DB_NAME);

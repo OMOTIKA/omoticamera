@@ -1,15 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { clearAllPending, listPending, PendingPhoto } from "../lib/db";
+import { clearAllPending, deletePending, listPending, type PendingPhoto } from "../lib/db";
+import { tryAutoSend } from "../lib/uploader";
 
 export default function StatusPage() {
   const [items, setItems] = useState<PendingPhoto[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const load = async () => {
     const arr = await listPending();
     setItems(arr);
+
+    // 既存URLを解放してから作り直し
+    Object.values(thumbs).forEach((u) => URL.revokeObjectURL(u));
 
     const map: Record<string, string> = {};
     for (const it of arr) {
@@ -18,57 +24,45 @@ export default function StatusPage() {
     setThumbs(map);
   };
 
-  const uploadOne = async (it: PendingPhoto) => {
-    await updatePending(it.id, { state: "uploading", lastError: "" });
+  const runSend = async () => {
+    if (busy) return;
+    setBusy(true);
+    setMsg("");
 
-    const form = new FormData();
-    form.append("file", it.blob, `${it.id}.svg`);
-    form.append("nickname", it.nickname);
-    form.append("id", it.id);
-form.append("createdAt", String(it.createdAt));
-
-    const res = await fetch("/api/upload", { method: "POST", body: form });
-    const json = await res.json().catch(() => ({}));
-
-    if (!res.ok || !json.ok) {
-      const msg = json.error || `HTTP ${res.status}`;
-      await updatePending(it.id, {
-        state: "error",
-        retryCount: (it.retryCount || 0) + 1,
-        lastError: msg,
-      });
-      return false;
+    try {
+      if (!navigator.onLine) {
+        setMsg("オフラインです（オンラインになったら自動再送されます）");
+        return;
+      }
+      const { sent, failed } = await tryAutoSend();
+      setMsg(`送信：${sent} / 失敗：${failed}`);
+      await load();
+    } catch {
+      setMsg("送信に失敗しました（通信）");
+    } finally {
+      setBusy(false);
     }
-
-    await updatePending(it.id, { state: "sent", sentAt: Date.now() });
-    return true;
   };
 
-  const runUploader = async () => {
-    if (!navigator.onLine) return;
+  const clearAll = async () => {
+    if (!confirm("端末内の送信待ちを全て削除します。よろしいですか？")) return;
+    await clearAllPending();
+    await load();
+  };
 
-    const all = await listPending();
-    const targets = all
-      .filter((x) => x.state === "pending" || x.state === "error")
-      .sort((a, b) => a.createdAt - b.createdAt);
-
-    for (const it of targets) {
-      if ((it.retryCount || 0) >= 3) continue;
-      await uploadOne(it);
-    }
-
+  const delOne = async (id: string) => {
+    if (!confirm("この1枚を端末内の送信待ちから削除します。よろしいですか？")) return;
+    await deletePending(id);
     await load();
   };
 
   useEffect(() => {
     load();
 
-    // オンライン復帰で自動送信
-    const onOnline = () => runUploader();
+    const onOnline = () => void runSend();
     window.addEventListener("online", onOnline);
 
-    // /statusが前面に来たら再実行
-    const onFocus = () => runUploader();
+    const onFocus = () => void runSend();
     window.addEventListener("focus", onFocus);
 
     return () => {
@@ -79,78 +73,58 @@ form.append("createdAt", String(it.createdAt));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const clearAll = async () => {
-    await clearAllPending();
-    setItems([]);
-    setThumbs({});
-  };
-
   return (
-    <main style={{ padding: 24, fontFamily: "sans-serif", maxWidth: 740 }}>
-      <h1>送信状況</h1>
+    <main style={{ padding: 24, fontFamily: "system-ui, -apple-system, sans-serif", maxWidth: 760 }}>
+      <h1 style={{ marginBottom: 8 }}>送信状況（端末内キュー）</h1>
 
-      <p style={{ color: "#444" }}>
-        送信待ち：
-        <b>
-          {items.filter((x) => x.state === "pending" || x.state === "error").length}
-        </b>
-        枚 / 送信済み：<b>{items.filter((x) => x.state === "sent").length}</b>枚
+      <p style={{ color: "#444", marginTop: 0 }}>
+        送信待ち：<b>{items.length}</b> 枚
       </p>
 
-      <button
-        onClick={runUploader}
-        style={{ padding: "10px 16px", cursor: "pointer" }}
-      >
-        今すぐ送信（手動）
-      </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={runSend} disabled={busy} style={{ padding: "10px 16px", cursor: "pointer" }}>
+          {busy ? "送信中…" : "今すぐ送信（手動）"}
+        </button>
 
-      <button
-        onClick={clearAll}
-        style={{ marginLeft: 8, padding: "10px 16px", cursor: "pointer" }}
-      >
-        全削除（テスト用）
-      </button>
+        <button onClick={clearAll} disabled={busy} style={{ padding: "10px 16px", cursor: "pointer" }}>
+          全削除（テスト用）
+        </button>
+      </div>
+
+      {msg && (
+        <div style={{ marginTop: 12, padding: 10, borderRadius: 12, background: "#f6f6f6", color: "#111" }}>
+          {msg}
+        </div>
+      )}
 
       <hr style={{ margin: "16px 0" }} />
 
       {items.length === 0 ? (
         <p>送信待ちはありません。</p>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: 12,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           {items.map((it) => (
-            <div
-              key={it.id}
-              style={{
-                border: "1px solid #eee",
-                borderRadius: 12,
-                padding: 10,
-              }}
-            >
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>
+            <div key={it.id} style={{ border: "1px solid #eee", borderRadius: 12, padding: 10 }}>
+              <div style={{ fontSize: 12, color: "#666", marginBottom: 6, wordBreak: "break-all" }}>
                 {it.nickname} / {new Date(it.createdAt).toLocaleString()}
-              </div>
-
-              <div style={{ fontSize: 12, marginBottom: 6 }}>
-                状態：<b>{it.state}</b>
-                {it.state === "error" && it.lastError ? `（${it.lastError}）` : ""}
+                <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{it.id}</div>
               </div>
 
               <img
                 src={thumbs[it.id]}
                 alt="pending"
-                style={{
-                  width: "100%",
-                  aspectRatio: "3 / 4",
-                  objectFit: "cover",
-                  borderRadius: 8,
-                }}
+                style={{ width: "100%", aspectRatio: "3 / 4", objectFit: "cover", borderRadius: 8 }}
               />
+
+              <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => delOne(it.id)}
+                  disabled={busy}
+                  style={{ padding: "8px 10px", cursor: "pointer" }}
+                >
+                  1枚削除
+                </button>
+              </div>
             </div>
           ))}
         </div>
