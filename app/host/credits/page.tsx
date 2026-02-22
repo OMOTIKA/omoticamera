@@ -40,7 +40,15 @@ export default function HostCreditsPage() {
 /* styles */
 
 const wrap = { minHeight: "100vh", background: "#fff", fontFamily: "system-ui" };
-const stickyTop = { position: "sticky", top: 0, background: "#fff", borderBottom: "1px solid #eee", padding: 10 };
+
+const stickyTop: React.CSSProperties = {
+  position: "sticky",
+  top: 0,
+  background: "#fff",
+  borderBottom: "1px solid #eee",
+  padding: 12,
+};
+
 const topInner = { maxWidth: 520, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center" };
 const title = { fontWeight: 900, fontSize: 14 };
 
