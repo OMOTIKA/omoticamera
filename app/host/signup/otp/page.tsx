@@ -1,8 +1,8 @@
 "use client";
 
-// UI_VER: HOST_SIGNUP_OTP_V1_20260211
+// UI_VER: HOST_SIGNUP_OTP_V1_20260211_SUSPENSE_FIX
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Footer from "@/components/Footer";
 import PrototypeNote from "@/components/PrototypeNote";
@@ -10,7 +10,45 @@ import PrototypeNote from "@/components/PrototypeNote";
 const API = "https://omotika.zombie.jp/omoticamera-api/cms";
 
 export default function HostSignupOtpPage() {
-  const UI_VER = "HOST_SIGNUP_OTP_V1_20260211";
+  return (
+    <Suspense fallback={<LoadingShell />}>
+      <HostSignupOtpInner />
+    </Suspense>
+  );
+}
+
+function LoadingShell() {
+  return (
+    <main style={wrap}>
+      <div style={stickyTop}>
+        <div style={topRow}>
+          <div style={{ width: 68 }} />
+          <div style={{ textAlign: "center", flex: 1 }}>
+            <div style={brand}>どこでもオモチカメラ</div>
+            <div style={sub}>認証コード入力</div>
+          </div>
+          <div style={{ width: 68 }} />
+        </div>
+      </div>
+
+      <div style={body}>
+        <section style={card}>
+          <div style={msg}>読み込み中…</div>
+          <div style={{ height: 44, borderRadius: 12, background: "#fff", border: "1px solid rgba(0,0,0,0.10)" }} />
+          <button style={{ ...btnPrimary, opacity: 0.55 }} disabled>
+            準備中…
+          </button>
+        </section>
+
+        <PrototypeNote />
+        <Footer uiVer={"HOST_SIGNUP_OTP_V1_20260211_SUSPENSE_FIX"} showSupporters={false} />
+      </div>
+    </main>
+  );
+}
+
+function HostSignupOtpInner() {
+  const UI_VER = "HOST_SIGNUP_OTP_V1_20260211_SUSPENSE_FIX";
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -21,7 +59,10 @@ export default function HostSignupOtpPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  const canNext = useMemo(() => otp.trim().length >= 4 && !!tmpToken && !loading, [otp, tmpToken, loading]);
+  const canNext = useMemo(
+    () => otp.trim().length >= 4 && !!tmpToken && !loading,
+    [otp, tmpToken, loading]
+  );
 
   const resend = async () => {
     if (!email) {
@@ -46,8 +87,9 @@ export default function HostSignupOtpPage() {
       const nextTmp = String(j.tmpToken || "");
       if (!nextTmp) throw new Error("missing_tmpToken");
 
-      // tmpToken更新して同ページに居続ける（迷わない）
-      router.replace(`/host/signup/otp?email=${encodeURIComponent(email)}&tmpToken=${encodeURIComponent(nextTmp)}`);
+      router.replace(
+        `/host/signup/otp?email=${encodeURIComponent(email)}&tmpToken=${encodeURIComponent(nextTmp)}`
+      );
       setOtp("");
     } catch {
       setErr("再送に失敗しました");
@@ -84,8 +126,9 @@ export default function HostSignupOtpPage() {
       }
       if (!j?.ok) throw new Error(j?.error || "otp_failed");
 
-      // OK → パスワード設定へ
-      router.push(`/host/signup/password?email=${encodeURIComponent(email)}&tmpToken=${encodeURIComponent(tmpToken)}`);
+      router.push(
+        `/host/signup/password?email=${encodeURIComponent(email)}&tmpToken=${encodeURIComponent(tmpToken)}`
+      );
     } catch (e: any) {
       const m = String(e?.message || e || "failed");
       if (m === "otp_invalid") setErr("認証コードが正しくありません");
