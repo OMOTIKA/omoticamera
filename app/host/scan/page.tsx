@@ -1,6 +1,6 @@
 "use client";
 
-// UI_VER: HOST_SCAN_UI_V1_20260217
+// UI_VER: HOST_SCAN_UI_V1_20260217_WIN_FIX
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,13 +8,19 @@ import Footer from "@/components/Footer";
 
 const LS_KEY_HOST_SESSION = "omoticamera_hostSessionToken";
 
-function extractEventIdFromText(text: string): string {
+function extractEventIdFromText(text: string, baseOrigin?: string): string {
   const t = (text || "").trim();
 
-  // join URL: /join?eventId=...
+  // join URL: /join?eventId=... または /join?event=...
   try {
-    const u = new URL(t, window.location.origin);
-    const eid = u.searchParams.get("eventId") || "";
+    const base = baseOrigin || "https://example.invalid";
+    const u = new URL(t, base);
+
+    const eid =
+      u.searchParams.get("eventId") ||
+      u.searchParams.get("event") ||
+      "";
+
     if (/^[0-9a-fA-F-]{36}$/.test(eid)) return eid;
   } catch {
     // noop
@@ -27,7 +33,7 @@ function extractEventIdFromText(text: string): string {
 }
 
 export default function HostScanPage() {
-  const UI_VER = "HOST_SCAN_UI_V1_20260217";
+  const UI_VER = "HOST_SCAN_UI_V1_20260217_WIN_FIX";
   const router = useRouter();
 
   const [ready, setReady] = useState(false);
@@ -36,16 +42,23 @@ export default function HostScanPage() {
   const [text, setText] = useState("");
   const [scanning, setScanning] = useState(false);
 
+  const [origin, setOrigin] = useState<string>("");
+  const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const tickRef = useRef<number | null>(null);
 
-  const hasBarcodeDetector = useMemo(() => {
-    // BarcodeDetector は一部ブラウザのみ
-    return typeof (window as any).BarcodeDetector !== "undefined";
-  }, []);
-
   useEffect(() => {
+    // ✅ window 参照は useEffect 内だけ（ブラウザでのみ実行）
+    try {
+      setOrigin(window.location.origin);
+      setHasBarcodeDetector(typeof (window as any).BarcodeDetector !== "undefined");
+    } catch {
+      setOrigin("");
+      setHasBarcodeDetector(false);
+    }
+
     localStorage.setItem("omoticamera_role", "host");
 
     const token = (localStorage.getItem(LS_KEY_HOST_SESSION) || "").trim();
@@ -63,7 +76,10 @@ export default function HostScanPage() {
 
   const stopCamera = () => {
     if (tickRef.current) {
-      window.clearInterval(tickRef.current);
+      // window 参照は guard
+      try {
+        window.clearInterval(tickRef.current);
+      } catch {}
       tickRef.current = null;
     }
     if (streamRef.current) {
@@ -108,12 +124,13 @@ export default function HostScanPage() {
           const barcodes = await detector.detect(videoRef.current);
           if (barcodes && barcodes.length > 0) {
             const raw = String(barcodes[0].rawValue || "");
-            const eid = extractEventIdFromText(raw);
+            const eid = extractEventIdFromText(raw, origin);
+
             if (eid) {
               stopCamera();
+              // ✅ join は eventId / event どちらでも拾えるが、ここは eventId で統一
               router.push(`/join?eventId=${encodeURIComponent(eid)}`);
             } else {
-              // eventId が取れない場合は raw を入力欄へ
               setText(raw);
             }
           }
@@ -129,7 +146,7 @@ export default function HostScanPage() {
 
   const go = () => {
     setErr("");
-    const eid = extractEventIdFromText(text);
+    const eid = extractEventIdFromText(text, origin);
     if (!eid) {
       setErr("eventId を取得できませんでした。join URL（/join?eventId=...）または eventId を貼り付けてください。");
       return;
