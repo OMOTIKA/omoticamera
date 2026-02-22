@@ -1,15 +1,36 @@
 "use client";
 
-// UI_VER: CMS_OTP_UI_V1_20260209
+// UI_VER: CMS_OTP_UI_V1_20260209_SUSPENSE_FIX
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const API_BASE = "https://omotika.zombie.jp/omoticamera-api/cms";
 const LS_TOKEN = "omoticamera_cms_token";
 
 export default function CmsOtpPage() {
-  const UI_VER = "CMS_OTP_UI_V1_20260209";
+  return (
+    <Suspense fallback={<LoadingShell />}>
+      <CmsOtpInner />
+    </Suspense>
+  );
+}
+
+function LoadingShell() {
+  return (
+    <main style={wrap}>
+      <div style={card}>
+        <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>
+          ワンタイムパスコード（OTP）
+        </div>
+        <div style={desc}>読み込み中…</div>
+      </div>
+    </main>
+  );
+}
+
+function CmsOtpInner() {
+  const UI_VER = "CMS_OTP_UI_V1_20260209_SUSPENSE_FIX";
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -25,9 +46,8 @@ export default function CmsOtpPage() {
       setMsg("tmpToken がありません。ログインからやり直してください。");
       return;
     }
-    // 画面に来たら自動で送信（既に送れてることが多いが、UXとしてOK）
-    // 二重送信を避けるため、最初の1回だけ
-    if (!sentOnce) sendOtp();
+    // 画面に来たら自動で送信（UX）
+    if (!sentOnce) void sendOtp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tmpToken]);
 
@@ -86,9 +106,7 @@ export default function CmsOtpPage() {
           ワンタイムパスコード（OTP）
         </div>
 
-        <div style={desc}>
-          {msg}
-        </div>
+        <div style={desc}>{msg}</div>
 
         <input
           value={otp}
@@ -116,6 +134,8 @@ export default function CmsOtpPage() {
     </main>
   );
 }
+
+/* styles */
 
 const wrap: React.CSSProperties = {
   minHeight: "100vh",
