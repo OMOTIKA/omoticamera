@@ -35,9 +35,11 @@ function getDB() {
         store.createIndex("by-createdAt", "createdAt");
       } else {
         const store = db.transaction("pending").objectStore("pending")!;
-        if (!store.indexNames.contains("by-createdAt")) {
-          store.createIndex("by-createdAt", "createdAt");
-        }
+
+if (!store.indexNames.contains("by-createdAt")) {
+  // ✅ 型定義上 createIndex が optional 扱いでも落ちないようにする
+  (store as any).createIndex?.("by-createdAt", "createdAt");
+}
       }
     },
   });
