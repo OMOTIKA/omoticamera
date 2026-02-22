@@ -1,8 +1,8 @@
 "use client";
 
-// UI_VER: JOIN_UI_V3_20260209
+// UI_VER: JOIN_UI_V3_20260209_SUSPENSE_FIX
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Footer from "@/components/Footer";
 
@@ -13,15 +13,94 @@ type JoinResp = {
   message?: string;
   eventId?: string;
   eventName?: string;
-  guestKey?: string; // join.php が返す想定
+  guestKey?: string;
 };
 
 export default function JoinPage() {
-  const UI_VER = "JOIN_UI_V3_20260209";
+  return (
+    <Suspense fallback={<LoadingShell />}>
+      <JoinInner />
+    </Suspense>
+  );
+}
+
+function LoadingShell() {
+  const UI_VER = "JOIN_UI_V3_20260209_SUSPENSE_FIX";
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#f6f6f6",
+        padding: 12,
+        boxSizing: "border-box",
+        fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+      }}
+    >
+      <div style={{ maxWidth: 520, margin: "0 auto" }}>
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: 14,
+            padding: 14,
+            border: "1px solid #eee",
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#666" }}>イベント名：読み込み中…</div>
+          <div style={{ fontSize: 18, fontWeight: 900, marginTop: 6 }}>
+            参加して撮影へ
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>
+              表示名
+            </div>
+            <div
+              style={{
+                width: "100%",
+                height: 44,
+                borderRadius: 12,
+                border: "1px solid #ddd",
+                background: "#fff",
+              }}
+            />
+          </div>
+
+          <button
+            disabled
+            style={{
+              width: "100%",
+              marginTop: 12,
+              padding: "14px",
+              borderRadius: 999,
+              border: 0,
+              background: "#111",
+              color: "#fff",
+              fontWeight: 900,
+              fontSize: 15,
+              opacity: 0.55,
+            }}
+          >
+            準備中…
+          </button>
+
+          <div style={{ marginTop: 10, fontSize: 10, opacity: 0.35 }}>
+            UI_VER: {UI_VER}
+          </div>
+        </div>
+
+        <Footer uiVer={UI_VER} />
+      </div>
+    </main>
+  );
+}
+
+function JoinInner() {
+  const UI_VER = "JOIN_UI_V3_20260209_SUSPENSE_FIX";
 
   const router = useRouter();
   const sp = useSearchParams();
 
+  // ※あなたの実装通り：event で受ける
   const eventId = useMemo(() => sp.get("event") || "", [sp]);
 
   const [nickname, setNickname] = useState("");
@@ -30,7 +109,6 @@ export default function JoinPage() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    // ここは「ゲスト参加」入口なので guest 固定
     localStorage.setItem("omoticamera_role", "guest");
 
     if (!eventId) {
@@ -41,7 +119,6 @@ export default function JoinPage() {
 
     localStorage.setItem("omoticamera_eventId", eventId);
 
-    // イベント名は list から拾う（これは既にOKだったやつ）
     (async () => {
       try {
         const r = await fetch(
@@ -72,7 +149,6 @@ export default function JoinPage() {
 
     setBusy(true);
     try {
-      // ★ここがポイント：CORS回避のためNext.js APIを叩く
       const r = await fetch(
         `/api/join?eventId=${encodeURIComponent(eventId)}&nickname=${encodeURIComponent(
           nickname.trim()
@@ -83,21 +159,16 @@ export default function JoinPage() {
       const j = (await r.json()) as JoinResp;
 
       if (!j?.ok) {
-        // kill_switch 等もここに入る想定
         setErr(j?.message || j?.error || "参加できませんでした");
         return;
       }
 
-      // guestKey が返る前提（返らない仕様なら、join.php側に合わせてここ変える）
-      if (j.guestKey) {
-        localStorage.setItem("omoticamera_guestKey", j.guestKey);
-      }
-
+      if (j.guestKey) localStorage.setItem("omoticamera_guestKey", j.guestKey);
       localStorage.setItem("omoticamera_eventId", eventId);
       localStorage.setItem("omoticamera_role", "guest");
 
       router.push("/camera");
-    } catch (e: any) {
+    } catch {
       setErr("参加できませんでした（通信）");
     } finally {
       setBusy(false);
