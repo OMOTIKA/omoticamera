@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { clearPending, listPending, PendingPhoto, updatePending } from "../lib/db";
+import { clearAllPending, listPending, PendingPhoto } from "../lib/db";
 
 export default function StatusPage() {
   const [items, setItems] = useState<PendingPhoto[]>([]);
@@ -80,7 +80,7 @@ form.append("createdAt", String(it.createdAt));
   }, []);
 
   const clearAll = async () => {
-    await clearPending();
+    await clearAllPending();
     setItems([]);
     setThumbs({});
   };

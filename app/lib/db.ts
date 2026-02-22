@@ -7,6 +7,9 @@ export type PendingPhoto = {
   createdAt: number;
   nickname: string;
   blob: Blob;
+
+  // ✅ 追加：ニックネーム変更を1回に制限するフラグ
+  nicknameLocked?: boolean;
 };
 
 type OmoticameraDB = DBSchema & {
@@ -54,22 +57,30 @@ export async function listPending(): Promise<PendingPhoto[]> {
   return all;
 }
 
+// ✅ 追加：1件更新（putで上書き）
+export async function updatePending(p: PendingPhoto) {
+  const db = await getDB();
+  await db.put("pending", p);
+}
+
 export async function markSent(id: string) {
   const db = await getDB();
   await db.delete("pending", id);
 }
 
-// ✅ 1枚削除（端末内の送信待ちから消す）
 export async function deletePending(id: string) {
   const db = await getDB();
   await db.delete("pending", id);
 }
 
-// ✅ 全部削除（端末内の送信待ちを全消し）
+// ✅ 既存：全部削除
 export async function clearAllPending() {
   const db = await getDB();
   await db.clear("pending");
 }
+
+// ✅ 互換のための別名（StatusPageが clearPending を呼ぶならこれで吸収できる）
+export const clearPending = clearAllPending;
 
 export async function resetLocalQueue() {
   indexedDB.deleteDatabase(DB_NAME);
